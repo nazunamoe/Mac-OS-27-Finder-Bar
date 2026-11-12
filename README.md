@@ -1,6 +1,6 @@
 # Mac OS 27 Finder Bar
 
-**English** | [Português](README.pt-BR.md)
+**English** | [Português](README.pt-BR.md) | [한국어](README.ko.md)
 
 A [Windhawk](https://windhawk.net) mod that adds a macOS 27-style menu bar to the top of the screen in Windows 11: the menus of the app in front on the left, and system status, Control Center, notifications and the clock on the right, all in live glass.
 
@@ -33,7 +33,7 @@ A [Windhawk](https://windhawk.net) mod that adds a macOS 27-style menu bar to th
 - **Live glass**: the bar and panels blur what's behind them in real time, with an experimental liquid glass with edge refraction (on by default)
 - **Bar and menus**: transparent (default), blur glass or liquid glass bar, opaque when the app is maximized; menus in their own frosted glass or the same glass as the Control Center; light, dark or automatic theme, nine selection colors, font and sizes; hides with full-screen apps, optional auto-hide, every monitor
 - **Settings window**: logo → **Menu Bar Settings…** opens the settings in a macOS-style window, with search, applied live without restarting the bar
-- **Your language**: follows the Windows display language, or pick one (English, Portuguese, Spanish, French, German, Italian and Simplified Chinese)
+- **Your language**: follows the Windows display language, or pick one (English, Portuguese, Spanish, French, German, Italian, Simplified Chinese and Korean)
 
 ---
 

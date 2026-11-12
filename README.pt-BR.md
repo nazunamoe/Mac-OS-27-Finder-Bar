@@ -1,6 +1,6 @@
 # Mac OS 27 Finder Bar
 
-[English](README.md) | **Português**
+[English](README.md) | **Português** | [한국어](README.ko.md)
 
 Um mod do [Windhawk](https://windhawk.net) que coloca uma barra de menus no estilo do macOS 27 no topo da tela do Windows 11: à esquerda, os menus do app em primeiro plano; à direita, o estado do sistema, a Central de Controle, as notificações e o relógio, tudo em vidro ao vivo.
 
