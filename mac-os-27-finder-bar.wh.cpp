@@ -16294,8 +16294,18 @@ static void MicSessionApps(std::vector<std::wstring>& out) {
                     c2->GetProcessId(&pid);
                     std::wstring path = pid ? GetProcessPath(pid) : L"";
                     if (!path.empty()) {
-                        std::wstring name = GetFileDescription(path);
-                        if (name.empty()) name = PrivPrettyName(path, false);
+                        // O nome de um .exe não muda: lê a descrição do arquivo uma vez só.
+                        static std::unordered_map<std::wstring, std::wstring> nameCache;
+                        auto hit = nameCache.find(path);
+                        std::wstring name;
+                        if (hit != nameCache.end()) {
+                            name = hit->second;
+                        } else {
+                            name = GetFileDescription(path);
+                            if (name.empty()) name = PrivPrettyName(path, false);
+                            if (nameCache.size() > 64) nameCache.clear();
+                            nameCache[path] = name;
+                        }
                         if (!name.empty() && std::find(out.begin(), out.end(), name) == out.end()) out.push_back(name);
                     }
                 }
