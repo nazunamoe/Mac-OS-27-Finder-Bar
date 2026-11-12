@@ -136,9 +136,11 @@ The bar runs in its own Windhawk process (shown as Windhawk in Task Manager), so
 - fontFamily: "Segoe UI Variable Text"
   $name: Font
   $name:pt-BR: Fonte
+  $name:ko-KR: 글꼴
 - theme: auto
   $name: Theme
   $name:pt-BR: Tema
+  $name:ko-KR: 테마
   $options:
   - auto: Follow Windows
   - dark: Dark (light text)
@@ -147,9 +149,14 @@ The bar runs in its own Windhawk process (shown as Windhawk in Task Manager), so
   - auto: Seguir o Windows
   - dark: Escuro (texto claro)
   - light: Claro (texto escuro)
+  $options:ko-KR:
+  - auto: Windows 설정 따르기
+  - dark: 다크(밝은 글자)
+  - light: 라이트(어두운 글자)
 - panelLook: auto
   $name: Look of menus and panels (Control Center, tray, Bluetooth)
   $name:pt-BR: Aparência dos menus e painéis (central, bandeja, Bluetooth)
+  $name:ko-KR: 메뉴 및 패널 외관(제어 센터, 트레이, Bluetooth)
   $options:
   - auto: Follow the Windows theme
   - dark: Dark glass
@@ -158,31 +165,44 @@ The bar runs in its own Windhawk process (shown as Windhawk in Task Manager), so
   - auto: Seguir o tema do Windows
   - dark: Vidro escuro
   - light: Vidro claro
+  $options:ko-KR:
+  - auto: Windows 테마 따르기
+  - dark: 어두운 유리
+  - light: 밝은 유리
 - tintDark: "#401A1A1A"
   $name: Glass tint in the dark theme (#AARRGGBB)
   $name:pt-BR: Tinta do vidro no tema escuro (#AARRGGBB)
+  $name:ko-KR: 다크 테마의 유리 색조(#AARRGGBB)
 - tintLight: "#50F2F2F2"
   $name: Glass tint in the light theme (#AARRGGBB)
   $name:pt-BR: Tinta do vidro no tema claro (#AARRGGBB)
+  $name:ko-KR: 라이트 테마의 유리 색조(#AARRGGBB)
 - desktopName: "Finder"
   $name: Name shown for the desktop and File Explorer
   $name:pt-BR: Nome exibido para a área de trabalho e o Explorador de Arquivos
+  $name:ko-KR: 데스크탑 및 파일 탐색기에 표시되는 이름
 - genericMenus: true
   $name: Ready-made menus (by shortcuts) for apps without a menu bar
   $name:pt-BR: Menus genéricos (por atalhos) para apps sem barra de menus
+  $name:ko-KR: 메뉴 막대가 없는 앱을 위한 기본 제공 메뉴(단축키 사용)
 - resetBarSettings: false
   $name: Reset the bar's settings
   $name:pt-BR: Restaurar os ajustes da barra
+  $name:ko-KR: 막대 설정 복원
   $description: Turn on and save to put the options of the bar's own "Menu Bar Settings…" window back to their defaults (including the glass, icon order and weather options), for example if the bar doesn't show up. The weather place, imported calendars and Control Center tiles are kept. It happens once each time you turn this on; you can turn it off again afterwards.
   $description:pt-BR: Ligue e salve para voltar ao padrão as opções da janela "Ajustes da Barra de Menus…" da própria barra (inclusive o vidro, a ordem dos ícones e as opções da previsão do tempo), por exemplo se a barra não aparecer. O lugar da previsão, os calendários importados e os blocos da Central ficam. Acontece uma vez a cada vez que você liga; depois pode desligar.
+  $description:ko-KR: 켜고 저장하면 막대 자체의 "메뉴 막대 설정…" 윈도우 옵션(유리, 아이콘 순서, 날씨 옵션 포함)이 기본값으로 돌아갑니다. 예를 들어 막대가 나타나지 않을 때 사용하십시오. 날씨 위치, 가져온 캘린더, 제어 센터 타일은 유지됩니다. 켤 때마다 한 번만 실행되며, 이후에는 다시 꺼도 됩니다.
 - checkAppUpdates: false
   $name: Also count app updates with winget (uses the network)
   $name:pt-BR: Contar também as atualizações de apps pelo winget (usa a rede)
+  $name:ko-KR: winget으로 앱 업데이트도 함께 집계(네트워크 사용)
   $description: Runs "winget upgrade" hidden every 3 hours and shows the number next to "Microsoft Store". winget checks its sources online. It only works if you have already accepted winget's source agreements yourself (run "winget upgrade" once in a terminal); the mod never accepts them for you.
   $description:pt-BR: Roda "winget upgrade" escondido a cada 3 horas e mostra o número ao lado de "Microsoft Store". O winget consulta as fontes dele pela internet. Só funciona se você já tiver aceitado os termos das fontes do winget (rode "winget upgrade" uma vez num terminal); o mod nunca aceita por você.
+  $description:ko-KR: 3시간마다 "winget upgrade"를 숨겨서 실행하고 그 수를 "Microsoft Store" 옆에 표시합니다. winget은 인터넷에서 소스를 확인합니다. winget 소스 계약에 직접 동의한 경우에만 작동하며(터미널에서 "winget upgrade"를 한 번 실행하십시오), 모드는 대신 동의하지 않습니다.
 - openAnim: cascade
   $name: Animation when opening the Control Center, menus and tray
   $name:pt-BR: Animação ao abrir a central, os menus e a bandeja
+  $name:ko-KR: 제어 센터, 메뉴 및 트레이를 열 때의 애니메이션
   $options:
   - cascade: Cascade (tiles appear row by row, growing)
   - fade: Fade only
@@ -191,41 +211,60 @@ The bar runs in its own Windhawk process (shown as Windhawk in Task Manager), so
   - cascade: Cascata (blocos aparecem linha a linha, crescendo)
   - fade: Só esmaecer
   - none: Nenhuma
+  $options:ko-KR:
+  - cascade: 캐스케이드(타일이 한 줄씩 커지며 나타남)
+  - fade: 페이드만
+  - none: 없음
 - ccOnStyle: circle
   $name: Control Center - look of a tile that is on
   $name:pt-BR: Central de controle - aparência do bloco ligado
+  $name:ko-KR: 제어 센터 - 켜진 타일의 외관
   $options:
   - circle: Colored circle
   - pill: Whole white pill
   $options:pt-BR:
   - circle: Círculo colorido
   - pill: Pílula inteira branca
+  $options:ko-KR:
+  - circle: 컬러 원
+  - pill: 흰색 알약 전체
 - ccShape: pill
   $name: Control Center - tile shape
   $name:pt-BR: Central de controle - formato dos blocos
+  $name:ko-KR: 제어 센터 - 타일 모양
   $options:
   - pill: Pill
   - rounded: Rounded corners (22 px, like macOS 27)
   $options:pt-BR:
   - pill: Pílula
   - rounded: Cantos arredondados (22 px, como o macOS 27)
+  $options:ko-KR:
+  - pill: 알약
+  - rounded: 둥근 모서리(22px, macOS 27과 동일)
 - ccAccent: "#3B82F6"
   $name: Control Center - accent color (#RRGGBB)
   $name:pt-BR: Central de controle - cor de destaque (#RRGGBB)
+  $name:ko-KR: 제어 센터 - 강조 색상(#RRGGBB)
 - trayClick: single
   $name: Left click on tray icons
   $name:pt-BR: Clique esquerdo nos ícones da bandeja
+  $name:ko-KR: 트레이 아이콘 왼쪽 클릭
   $options:
   - single: Single click
   - double: Double click (for older apps that only open that way)
   $options:pt-BR:
   - single: Clique simples
   - double: Clique duplo (para apps antigos que só abrem assim)
+  $options:ko-KR:
+  - single: 한 번 클릭
+  - double: 두 번 클릭(그렇게만 열리는 오래된 앱용)
 - icsFiles: [""]
   $name: Calendars - .ics files
   $name:pt-BR: Calendários - arquivos .ics
+  $name:ko-KR: 캘린더 - .ics 파일
   $description: You can also import .ics files from Menu Bar Settings → Calendar. Add as many as you like, with the list's add item button or several in the same field separated by semicolons (;). Each one is the path of an .ics file on this PC (e.g. C:\\Users\\you\\calendar.ics); the mod never downloads calendars. Changes to the file show up in the agenda. Each calendar gets a color. The agenda shows when you click the clock.
   $description:pt-BR: Também dá para importar arquivos .ics em Ajustes da Barra de Menus → Calendário. Adicione quantos quiser, pelo botão de adicionar item da lista ou colocando vários no mesmo campo separados por ponto e vírgula (;). Cada um é o caminho de um arquivo .ics neste PC (ex. C:\\Users\\voce\\agenda.ics); o mod nunca baixa calendários. Mudanças no arquivo aparecem na agenda. Cada calendário ganha uma cor. A agenda aparece ao clicar no relógio.
+  $description:ko-KR: 메뉴 막대 설정 → 캘린더에서도 .ics 파일을 가져올 수 있습니다. 목록의 항목 추가 버튼으로 원하는 만큼 추가하거나, 한 칸에 세미콜론(;)으로 구분해 여러 개를 입력할 수 있습니다. 각 항목은 이 PC에 있는 .ics 파일의 경로입니다(예: C:\\Users\\you\\calendar.ics). 모드는 캘린더를 다운로드하지 않습니다. 파일의 변경 사항은 일정에 반영되며, 캘린더마다 색상이 지정됩니다. 일정은 시계를 클릭하면 표시됩니다.
 */
 // ==/WindhawkModSettings==
 
