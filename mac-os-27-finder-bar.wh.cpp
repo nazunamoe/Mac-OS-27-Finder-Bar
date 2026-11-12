@@ -873,6 +873,11 @@ static void LoadSettings() {
     }
     s.dateFormat = OvrStr(L"dateFormat");
     s.timeFormat = OvrStr(L"timeFormat");
+    if (g_lang.load() == UI_KO) {  // coreano: sem escolha salva, o formato "11월 12일 (목)  오후 1:27"
+        std::wstring saved;
+        if (!UiStored(L"dateFormat", saved)) s.dateFormat = L"M월 d일 (ddd)";
+        if (!UiStored(L"timeFormat", saved)) s.timeFormat = L"tt h:mm";
+    }
     s.dateUpper = OvrInt(L"dateUpper") != 0;
     if (s.timeFormat.empty()) s.timeFormat = L"HH:mm";
 }
