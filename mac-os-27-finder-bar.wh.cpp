@@ -2219,6 +2219,22 @@ struct VolumeCallback final : IAudioEndpointVolumeCallback {
 };
 static IAudioEndpointVolume* g_volEndpoint = nullptr;
 static VolumeCallback* g_volCb = nullptr;
+static std::wstring g_volDevId;  // dispositivo padrão ao qual g_volEndpoint pertence
+
+static std::wstring DefaultRenderId() {
+    std::wstring id;
+    if (!g_mmEnum) return id;
+    IMMDevice* dev = nullptr;
+    if (SUCCEEDED(g_mmEnum->GetDefaultAudioEndpoint(eRender, eConsole, &dev))) {
+        LPWSTR s = nullptr;
+        if (SUCCEEDED(dev->GetId(&s))) {
+            id = s;
+            CoTaskMemFree(s);
+        }
+        dev->Release();
+    }
+    return id;
+}
 
 static void UnregisterVolumeCallback() {
     if (g_volEndpoint && g_volCb) g_volEndpoint->UnregisterControlChangeNotify(g_volCb);
@@ -2232,6 +2248,7 @@ static void UnregisterVolumeCallback() {
 static void RegisterVolumeCallback() {
     UnregisterVolumeCallback();
     g_volEndpoint = GetEndpointVolume(eRender);
+    g_volDevId = DefaultRenderId();
     if (!g_volEndpoint) return;
     g_volCb = new VolumeCallback();
     if (FAILED(g_volEndpoint->RegisterControlChangeNotify(g_volCb))) {
@@ -2241,14 +2258,20 @@ static void RegisterVolumeCallback() {
     }
 }
 
-static void PollAudio(Status& s) {
-    IAudioEndpointVolume* v = GetEndpointVolume(eRender);
+// Lê o volume pelo endpoint que já está guardado (o mesmo do aviso de mudança),
+// sem ativar um novo a cada segundo. De tempos em tempos confere se o
+// dispositivo padrão mudou (troca feita fora da barra) e, se mudou, refaz.
+static void PollAudio(Status& s, bool recheck) {
+    if (g_volEndpoint && recheck && DefaultRenderId() != g_volDevId) RegisterVolumeCallback();
+    if (!g_volEndpoint) RegisterVolumeCallback();
+    IAudioEndpointVolume* v = g_volEndpoint;
     if (!v) return;
     float f = 0;
     BOOL mute = FALSE;
-    v->GetMasterVolumeLevelScalar(&f);
-    v->GetMute(&mute);
-    v->Release();
+    if (FAILED(v->GetMasterVolumeLevelScalar(&f)) || FAILED(v->GetMute(&mute))) {
+        RegisterVolumeCallback();  // o dispositivo sumiu: tenta o padrão atual na próxima leitura
+        return;
+    }
     s.hasAudio = true;
     s.volume = (int)(f * 100 + 0.5f);
     s.mute = mute != FALSE;
@@ -2324,7 +2347,7 @@ static void PollStatus(bool full) {
     }
     if (g_settings.showBluetooth)
         s.hasBt = (full || g_statusTick % 5 == 0) ? HasBluetoothRadio() : g_status.hasBt;
-    if (g_settings.showVolume) PollAudio(s);
+    if (g_settings.showVolume) PollAudio(s, full || g_statusTick % 3 == 0);
     if (g_settings.showKeyboard) {
         HKL list[32];
         s.kbdCount = GetKeyboardLayoutList(ARRAYSIZE(list), list);
@@ -5626,9 +5649,26 @@ struct LqMap {
 };
 
 struct LiquidSurface {
+    LiquidSurface() = default;
+    LiquidSurface(const LiquidSurface&) = delete;
+    LiquidSurface& operator=(const LiquidSurface&) = delete;
+    ~LiquidSurface() {
+        if (dibDc) {
+            SelectObject(dibDc, dibOld);
+            DeleteDC(dibDc);
+        }
+        if (dib) DeleteObject(dib);
+    }
     std::vector<UINT32> px;
     int w = 0, h = 0;
     RECT rc{};  // retângulo da foto na tela
+    // Superfície de captura reaproveitada entre fotos (só refeita se o tamanho mudar).
+    HDC dibDc = nullptr;
+    HBITMAP dib = nullptr, dibOld = nullptr;
+    void* dibBits = nullptr;
+    int dibW = 0, dibH = 0;
+    UINT64 hash = 0;  // resumo da última foto: foto igual não gera redesenho
+    bool hashed = false;
     bool fresh = false;
     bool live = false;
     bool black = false;  // a captura veio preta (janela que o GDI não enxerga)
@@ -5678,39 +5718,58 @@ static bool LqCapture(LiquidSurface& l, RECT rc, bool hideBars = true) {
     if (!IntersectRect(&rc, &rc, &vs)) return false;
     int w = rc.right - rc.left, h = rc.bottom - rc.top;
     if (w <= 0 || h <= 0) return false;
-    BITMAPINFO bi{};
-    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
-    bi.bmiHeader.biWidth = w;
-    bi.bmiHeader.biHeight = -h;
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;
-    bi.bmiHeader.biCompression = BI_RGB;
-    void* bits = nullptr;
     HDC screen = GetDC(nullptr);
-    HDC dc = CreateCompatibleDC(screen);
-    HBITMAP bmp = dc ? CreateDIBSection(dc, &bi, DIB_RGB_COLORS, &bits, nullptr, 0) : nullptr;
-    if (!bmp) {
-        if (dc) DeleteDC(dc);
+    if (!l.dibDc) l.dibDc = CreateCompatibleDC(screen);
+    if (!l.dibDc) {
         ReleaseDC(nullptr, screen);
         return false;
     }
-    HGDIOBJ old = SelectObject(dc, bmp);
-    BitBlt(dc, 0, 0, w, h, screen, rc.left, rc.top, SRCCOPY);
+    if (!l.dib || l.dibW != w || l.dibH != h) {
+        BITMAPINFO bi{};
+        bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
+        bi.bmiHeader.biWidth = w;
+        bi.bmiHeader.biHeight = -h;
+        bi.bmiHeader.biPlanes = 1;
+        bi.bmiHeader.biBitCount = 32;
+        bi.bmiHeader.biCompression = BI_RGB;
+        void* bits = nullptr;
+        HBITMAP nb = CreateDIBSection(l.dibDc, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+        if (!nb) {
+            ReleaseDC(nullptr, screen);
+            return false;
+        }
+        HGDIOBJ prev = SelectObject(l.dibDc, nb);
+        if (!l.dib) l.dibOld = (HBITMAP)prev;
+        if (l.dib) DeleteObject(l.dib);
+        l.dib = nb;
+        l.dibBits = bits;
+        l.dibW = w;
+        l.dibH = h;
+        l.hashed = false;
+    }
+    BitBlt(l.dibDc, 0, 0, w, h, screen, rc.left, rc.top, SRCCOPY);
     GdiFlush();
     ReleaseDC(nullptr, screen);
+    const UINT32* src = (const UINT32*)l.dibBits;
+    size_t total = (size_t)w * h;
+    // Foto igual à anterior (mesmo lugar, mesmos pixels): nada a refazer.
+    UINT64 hv = 1469598103934665603ull;
+    for (size_t i = 0; i < total; i++) hv = (hv ^ src[i]) * 1099511628211ull;
+    if (l.hashed && l.w == w && l.h == h && l.hash == hv && EqualRect(&l.rc, &rc)) return false;
+    l.hash = hv;
+    l.hashed = true;
     if (l.w != w || l.h != h) {
         SafeRelease(l.snap);
         l.px.assign((size_t)w * h, 0);
     }
-    const UINT32* src = (const UINT32*)bits;
-    size_t total = (size_t)w * h, blacks = 0, samples = 0;
     for (size_t i = 0; i < total; i++) {
         // Preto puro vira transparente: onde a captura falhou, aparece o fundo de verdade.
         l.px[i] = (src[i] & 0x00FFFFFF) == 0 ? 0 : (src[i] | 0xFF000000);
-        if (i % 7 == 0) {
-            samples++;
-            if ((src[i] & 0x00FFFFFF) == 0) blacks++;
-        }
+    }
+    size_t blacks = 0, samples = 0;
+    for (size_t i = 0; i < total; i += 7) {
+        samples++;
+        if ((src[i] & 0x00FFFFFF) == 0) blacks++;
     }
     // Janelas com apresentação direta (navegadores, vídeos, jogos, terminais com
     // aceleração) às vezes saem pretas na captura do GDI. Nesse caso não se usa a
@@ -5729,9 +5788,6 @@ static bool LqCapture(LiquidSurface& l, RECT rc, bool hideBars = true) {
             for (int y = in.top - rc.top; y < srcRow; y++)
                 memcpy(&l.px[(size_t)y * w + x0], &l.px[(size_t)srcRow * w + x0], (size_t)(x1 - x0) * 4);
         }
-    SelectObject(dc, old);
-    DeleteObject(bmp);
-    DeleteDC(dc);
     l.w = w;
     l.h = h;
     l.rc = rc;
@@ -7119,7 +7175,7 @@ static void CloseControlCenter(bool refocus) {
     g_ccClosing = true;
     g_ccCloseTick = GetTickCount64();
     g_cc.animating = false;
-    SetTimer(g_cc.hwnd, 6, 10, nullptr);
+    SetTimer(g_cc.hwnd, 6, 16, nullptr);
 }
 
 
@@ -7725,7 +7781,7 @@ static void OpenControlCenter(Bar* b) {
                      SWP_NOACTIVATE | SWP_SHOWWINDOW);
     SetForegroundWindow(g_cc.hwnd);
     g_menuOpen = true;
-    SetTimer(g_cc.hwnd, 1, 10, nullptr);
+    SetTimer(g_cc.hwnd, 1, 16, nullptr);
 }
 
 // Avisos da thread de trabalho e do status geral.
@@ -8629,7 +8685,7 @@ static bool GmOpenLevel(HMENU menu, int x, int y, bool alignRight, bool activate
     if (lv->glass.ok)
         SetWindowPos(lv->glass.hwnd, lv->hwnd, lv->pos.x, lv->pos.y, lv->W, lv->H, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     if (activate) SetForegroundWindow(lv->hwnd);
-    if (g_settings.openAnim != 0) SetTimer(lv->hwnd, GM_TIMER_FADE, 10, nullptr);
+    if (g_settings.openAnim != 0) SetTimer(lv->hwnd, GM_TIMER_FADE, 16, nullptr);
     return true;
 }
 
@@ -8722,7 +8778,7 @@ static void GmRebuildRoot() {
     GmResizeWindow(lv, lv->W, std::max(newH, oldH));
     if (!lv->pendingShrink) lv->H = newH;
     GmRender(lv);
-    SetTimer(lv->hwnd, GM_TIMER_FADE, 10, nullptr);
+    SetTimer(lv->hwnd, GM_TIMER_FADE, 16, nullptr);
 }
 
 static void GmChoose(int level, int item) {
@@ -9494,7 +9550,7 @@ static void OpenTrayPopup(Bar* b) {
                      SWP_NOACTIVATE | SWP_SHOWWINDOW);
     g_menuOpen = true;
     SetForegroundWindow(g_tray.hwnd);
-    if (g_settings.openAnim != 0) SetTimer(g_tray.hwnd, TRAY_TIMER_FADE, 10, nullptr);
+    if (g_settings.openAnim != 0) SetTimer(g_tray.hwnd, TRAY_TIMER_FADE, 16, nullptr);
 }
 
 // ===========================================================================
@@ -10322,7 +10378,7 @@ static void FlyToggle(Bar* b, int idx, int kind) {
     g_menuOpen = true;
     b->open = idx;
     InvalidateRect(b->hwnd, nullptr, FALSE);
-    if (g_settings.openAnim != 0) SetTimer(g_fly.hwnd, FLY_TIMER_ANIM, 10, nullptr);
+    if (g_settings.openAnim != 0) SetTimer(g_fly.hwnd, FLY_TIMER_ANIM, 16, nullptr);
     if (kind == FLY_BT) SetTimer(g_fly.hwnd, FLY_TIMER_BTPOLL, 2000, nullptr);
 }
 
@@ -10879,7 +10935,7 @@ static void NpClose() {
     if (g_np.closing) return;
     g_np.closing = true;
     g_np.closeTick = GetTickCount64();
-    SetTimer(g_np.hwnd, 2, 10, nullptr);
+    SetTimer(g_np.hwnd, 2, 16, nullptr);
 }
 
 static int NpHit(float x, float y) {
@@ -11129,7 +11185,7 @@ static void NpToggle(Bar* b, int idx) {
     InvalidateRect(b->hwnd, nullptr, FALSE);
     SetTimer(g_np.hwnd, 1, 250, nullptr);  // o tempo da música anda
     g_npTimerMs = 250;
-    if (g_settings.openAnim != 0) SetTimer(g_np.hwnd, 3, 10, nullptr);  // animação de abertura fluida
+    if (g_settings.openAnim != 0) SetTimer(g_np.hwnd, 3, 16, nullptr);  // animação de abertura fluida
 }
 
 static bool AnyOtherPanelOpen(HWND closing) {
@@ -11996,7 +12052,7 @@ static void BsGoSection(int sec) {
     g_bs.hover = -1;
     g_bs.secTick = GetTickCount64();
     BsLayout();
-    if (g_bs.hwnd && g_settings.openAnim != 0) SetTimer(g_bs.hwnd, 2, 10, nullptr);
+    if (g_bs.hwnd && g_settings.openAnim != 0) SetTimer(g_bs.hwnd, 2, 16, nullptr);
     BsRender();
 }
 
@@ -12732,7 +12788,7 @@ static void BsClose() {
     KillTimer(g_bs.hwnd, 1);
     KillTimer(g_bs.hwnd, 2);
     KillTimer(g_bs.hwnd, 4);
-    SetTimer(g_bs.hwnd, 3, 10, nullptr);
+    SetTimer(g_bs.hwnd, 3, 16, nullptr);
     BsRender();
 }
 
@@ -13077,7 +13133,7 @@ static void BsOpenAt(const POINT* at, float scroll) {
         SetWindowPos(g_bs.glass.hwnd, g_bs.hwnd, g_bs.pos.x, g_bs.pos.y, g_bs.W, g_bs.H,
                      SWP_NOACTIVATE | SWP_SHOWWINDOW);
     SetForegroundWindow(g_bs.hwnd);
-    if (g_settings.openAnim != 0 && !at) SetTimer(g_bs.hwnd, 1, 10, nullptr);
+    if (g_settings.openAnim != 0 && !at) SetTimer(g_bs.hwnd, 1, 16, nullptr);
 }
 
 // ===========================================================================
@@ -15818,7 +15874,7 @@ static void CalOpen(Bar* b, int idx) {
     g_menuOpen = true;
     b->open = idx;
     InvalidateRect(b->hwnd, nullptr, FALSE);
-    if (g_settings.openAnim != 0) SetTimer(g_calw.hwnd, 1, 10, nullptr);
+    if (g_settings.openAnim != 0) SetTimer(g_calw.hwnd, 1, 16, nullptr);
 }
 
 // ===========================================================================
@@ -18891,7 +18947,7 @@ static void NtfClose() {
     if (g_ntf.closing) return;
     g_ntf.closing = true;
     g_ntf.closeTick = GetTickCount64();
-    SetTimer(g_ntf.hwnd, 2, 10, nullptr);
+    SetTimer(g_ntf.hwnd, 2, 16, nullptr);
 }
 
 // Nova notificação com o painel aberto: refaz a lista (o tamanho da janela fica).
@@ -19138,7 +19194,7 @@ static void NtfToggle(Bar* b, int idx) {
     g_menuOpen = true;
     b->open = idx;
     InvalidateRect(b->hwnd, nullptr, FALSE);
-    if (g_settings.openAnim != 0) SetTimer(g_ntf.hwnd, 3, 10, nullptr);
+    if (g_settings.openAnim != 0) SetTimer(g_ntf.hwnd, 3, 16, nullptr);
     RedrawAll();
 }
 
@@ -21147,7 +21203,7 @@ static BOOL CALLBACK MonitorEnumProc(HMONITOR mon, HDC, LPRECT, LPARAM) {
 static void CreateBars() {
     ResolveTheme();
     EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, 0);
-    if (g_settings.autoHide) SetTimer(g_owner, TIMER_FAST, 100, nullptr);
+    if (g_settings.autoHide) SetCoalescableTimer(g_owner, TIMER_FAST, 100, 30, nullptr);
     else KillTimer(g_owner, TIMER_FAST);
     UpdateSolid();
 }
@@ -21423,8 +21479,8 @@ static DWORD WINAPI BarThread(LPVOID) {
     BnrRescueParked();  // faixas do Windows deixadas fora da tela por uma sessão anterior
     NotifApply();
     AddClipboardFormatListener(g_owner);
-    SetTimer(g_owner, TIMER_STATUS, 1000, nullptr);
-    SetTimer(g_owner, TIMER_CAPS, 200, nullptr);
+    SetCoalescableTimer(g_owner, TIMER_STATUS, 1000, 100, nullptr);
+    SetCoalescableTimer(g_owner, TIMER_CAPS, 200, 50, nullptr);
     WxLoad();
     WxRefresh();
     SetTimer(g_owner, TIMER_WEATHER, WxIntervalMs(), nullptr);
