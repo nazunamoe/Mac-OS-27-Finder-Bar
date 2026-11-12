@@ -12697,20 +12697,23 @@ static void BsClockOptions() {
     struct Opt {
         PCWSTR fmt;
         bool date;
+        bool koOnly = false;  // só aparece com a interface em coreano
     };
     static const Opt kOpts[] = {
-        {L"ddd d MMM", true}, {L"dddd, d 'de' MMMM", true}, {L"dd/MM", true}, {L"", true},
-        {L"HH:mm", false},    {L"HH:mm:ss", false},          {L"h:mm tt", false},
+        {L"ddd d MMM", true}, {L"dddd, d 'de' MMMM", true}, {L"dd/MM", true}, {L"M월 d일 (ddd)", true, true},
+        {L"", true},
+        {L"HH:mm", false},    {L"HH:mm:ss", false},          {L"h:mm tt", false}, {L"tt h:mm", false, true},
     };
     SYSTEMTIME st;
     GetLocalTime(&st);
     HMENU m = CreatePopupMenu();
     AddHeader(m, L"Data");
     for (int i = 0; i < (int)ARRAYSIZE(kOpts); i++) {
-        if (i == 4) {
+        if (i == 5) {
             AddSep(m);
             AddHeader(m, L"Hora");
         }
+        if (kOpts[i].koOnly && g_lang.load() != UI_KO) continue;
         wchar_t buf[96] = L"";
         if (!kOpts[i].fmt[0]) wcscpy(buf, L"Não mostrar");
         else if (kOpts[i].date)
@@ -21203,7 +21206,7 @@ static BOOL CALLBACK MonitorEnumProc(HMONITOR mon, HDC, LPRECT, LPARAM) {
 static void CreateBars() {
     ResolveTheme();
     EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, 0);
-    if (g_settings.autoHide) SetCoalescableTimer(g_owner, TIMER_FAST, 100, 30, nullptr);
+    if (g_settings.autoHide) SetCoalescableTimer(g_owner, TIMER_FAST, 100, nullptr, 30);
     else KillTimer(g_owner, TIMER_FAST);
     UpdateSolid();
 }
@@ -21479,8 +21482,8 @@ static DWORD WINAPI BarThread(LPVOID) {
     BnrRescueParked();  // faixas do Windows deixadas fora da tela por uma sessão anterior
     NotifApply();
     AddClipboardFormatListener(g_owner);
-    SetCoalescableTimer(g_owner, TIMER_STATUS, 1000, 100, nullptr);
-    SetCoalescableTimer(g_owner, TIMER_CAPS, 200, 50, nullptr);
+    SetCoalescableTimer(g_owner, TIMER_STATUS, 1000, nullptr, 100);
+    SetCoalescableTimer(g_owner, TIMER_CAPS, 200, nullptr, 50);
     WxLoad();
     WxRefresh();
     SetTimer(g_owner, TIMER_WEATHER, WxIntervalMs(), nullptr);
