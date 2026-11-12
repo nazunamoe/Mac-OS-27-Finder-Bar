@@ -5731,6 +5731,7 @@ struct LiquidSurface {
     int dibW = 0, dibH = 0;
     UINT64 hash = 0;  // resumo da última foto: foto igual não gera redesenho
     bool hashed = false;
+    bool same = false;  // a última tentativa de foto saiu igual à anterior (não é falha)
     bool fresh = false;
     bool live = false;
     bool black = false;  // a captura veio preta (janela que o GDI não enxerga)
@@ -5774,6 +5775,7 @@ static void LqFree(LiquidSurface*& l) {
 }
 
 static bool LqCapture(LiquidSurface& l, RECT rc, bool hideBars = true) {
+    l.same = false;
     RECT vs = {GetSystemMetrics(SM_XVIRTUALSCREEN), GetSystemMetrics(SM_YVIRTUALSCREEN), 0, 0};
     vs.right = vs.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
     vs.bottom = vs.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
@@ -5817,7 +5819,10 @@ static bool LqCapture(LiquidSurface& l, RECT rc, bool hideBars = true) {
     // Foto igual à anterior (mesmo lugar, mesmos pixels): nada a refazer.
     UINT64 hv = 1469598103934665603ull;
     for (size_t i = 0; i < total; i++) hv = (hv ^ src[i]) * 1099511628211ull;
-    if (l.hashed && l.w == w && l.h == h && l.hash == hv && EqualRect(&l.rc, &rc)) return false;
+    if (l.hashed && l.w == w && l.h == h && l.hash == hv && EqualRect(&l.rc, &rc)) {
+        l.same = true;
+        return false;
+    }
     l.hash = hv;
     l.hashed = true;
     if (l.w != w || l.h != h) {
@@ -19798,17 +19803,29 @@ static void BarSyncShadow(Bar* b) {
 }
 
 static void BarLiquidTick() {
-    bool any = false;
+    bool any = false, changed = false, shown = false;
+    static int idle = 0;
     for (Bar* b : g_bars) {
         if (b->lq) any = true;
         if (!b->lq || b->solid || !IsWindowVisible(b->hwnd)) continue;
+        shown = true;
         RECT wr;
         if (!GetWindowRect(b->hwnd, &wr)) continue;
         InflateRect(&wr, kLiquidMargin, kLiquidMargin);
-        if (LqCapture(*b->lq, wr, false)) InvalidateRect(b->hwnd, nullptr, FALSE);
+        if (LqCapture(*b->lq, wr, false)) {
+            InvalidateRect(b->hwnd, nullptr, FALSE);
+            changed = true;
+        }
     }
     // Nenhuma barra no estilo líquido (trocou de estilo): a captura para.
-    if (!any) KillTimer(g_owner, TIMER_BARLIQUID);
+    if (!any) {
+        KillTimer(g_owner, TIMER_BARLIQUID);
+        idle = 0;
+        return;
+    }
+    // Barra escondida (tela cheia) ou fundo parado: confere menos vezes; mudou, volta ao normal.
+    idle = changed ? 0 : idle + 1;
+    SetTimer(g_owner, TIMER_BARLIQUID, !shown ? 500 : idle < 10 ? 50 : idle < 40 ? 100 : 200, nullptr);
 }
 
 // Prepara a barra para o estilo escolhido (chamado ao criar).
@@ -21078,27 +21095,44 @@ static LRESULT CALLBACK BarWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 // Vidro líquido ao vivo: refaz a foto de cada painel aberto e redesenha.
-static bool LqLiveRefresh(LiquidSurface* l) {
-    if (!l || !l->live || !l->wnd || !IsWindow(l->wnd)) return false;
+// 0 = sem superfície viva (ou a captura falhou), 1 = foto nova, 2 = foto igual à anterior.
+static int LqLiveRefresh(LiquidSurface* l) {
+    if (!l || !l->live || !l->wnd || !IsWindow(l->wnd)) return 0;
     RECT wr;
-    if (!GetWindowRect(l->wnd, &wr)) return false;
+    if (!GetWindowRect(l->wnd, &wr)) return 0;
     InflateRect(&wr, kLiquidMargin, kLiquidMargin);
-    return LqCapture(*l, wr);
+    if (LqCapture(*l, wr)) return 1;
+    return l->same ? 2 : 0;
 }
 
 static void LqLiveTick() {
-    bool any = false;
-    for (GmLevel* lv : g_gm)
-        if (LqLiveRefresh(lv->glass.lq)) { any = true; GmRender(lv); }
-    if (g_cc.hwnd && LqLiveRefresh(g_cc.lq)) { any = true; CcRender(); }
-    if (g_tray.hwnd && g_tray.glass && LqLiveRefresh(g_tray.glass->lq)) { any = true; RenderTrayPopup(); }
-    if (g_osd.hwnd && LqLiveRefresh(g_osd.glass.lq)) { any = true; OsdRender(); }
-    if (g_fly.hwnd && LqLiveRefresh(g_fly.glass.lq)) { any = true; FlyRender(); }
-    if (g_bs.hwnd && LqLiveRefresh(g_bs.glass.lq)) { any = true; BsRender(); }
-    if (g_wxw.hwnd && LqLiveRefresh(g_wxw.glass.lq)) { any = true; WxRender(); }
-    if (g_calw.hwnd && LqLiveRefresh(g_calw.glass.lq)) { any = true; CalRender(); }
-    if (g_isl.hwnd && LqLiveRefresh(g_isl.glass.lq)) { any = true; IslandRender(); }
-    if (!any) KillTimer(g_owner, TIMER_LIQUID);
+    bool any = false, changed = false;
+    static int idle = 0;
+    auto live = [&](LiquidSurface* l, auto render) {
+        int r = LqLiveRefresh(l);
+        if (r) any = true;
+        if (r == 1) {
+            changed = true;
+            render();
+        }
+    };
+    for (GmLevel* lv : g_gm) live(lv->glass.lq, [&] { GmRender(lv); });
+    if (g_cc.hwnd) live(g_cc.lq, [&] { CcRender(); });
+    if (g_tray.hwnd && g_tray.glass) live(g_tray.glass->lq, [&] { RenderTrayPopup(); });
+    if (g_osd.hwnd) live(g_osd.glass.lq, [&] { OsdRender(); });
+    if (g_fly.hwnd) live(g_fly.glass.lq, [&] { FlyRender(); });
+    if (g_bs.hwnd) live(g_bs.glass.lq, [&] { BsRender(); });
+    if (g_wxw.hwnd) live(g_wxw.glass.lq, [&] { WxRender(); });
+    if (g_calw.hwnd) live(g_calw.glass.lq, [&] { CalRender(); });
+    if (g_isl.hwnd) live(g_isl.glass.lq, [&] { IslandRender(); });
+    if (!any) {
+        KillTimer(g_owner, TIMER_LIQUID);
+        idle = 0;
+        return;
+    }
+    // Fundo parado: confere menos vezes; qualquer mudança volta ao ritmo normal.
+    idle = changed ? 0 : idle + 1;
+    SetTimer(g_owner, TIMER_LIQUID, idle < 10 ? 40 : idle < 40 ? 100 : 200, nullptr);
 }
 
 #define TIMER_RELOAD 84
