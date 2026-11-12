@@ -264,7 +264,7 @@ The bar runs in its own Windhawk process (shown as Windhawk in Task Manager), so
   $name:ko-KR: 캘린더 - .ics 파일
   $description: You can also import .ics files from Menu Bar Settings → Calendar. Add as many as you like, with the list's add item button or several in the same field separated by semicolons (;). Each one is the path of an .ics file on this PC (e.g. C:\\Users\\you\\calendar.ics); the mod never downloads calendars. Changes to the file show up in the agenda. Each calendar gets a color. The agenda shows when you click the clock.
   $description:pt-BR: Também dá para importar arquivos .ics em Ajustes da Barra de Menus → Calendário. Adicione quantos quiser, pelo botão de adicionar item da lista ou colocando vários no mesmo campo separados por ponto e vírgula (;). Cada um é o caminho de um arquivo .ics neste PC (ex. C:\\Users\\voce\\agenda.ics); o mod nunca baixa calendários. Mudanças no arquivo aparecem na agenda. Cada calendário ganha uma cor. A agenda aparece ao clicar no relógio.
-  $description:ko-KR: 메뉴 막대 설정 → 캘린더에서도 .ics 파일을 가져올 수 있습니다. 목록의 항목 추가 버튼으로 원하는 만큼 추가하거나, 한 칸에 세미콜론(;)으로 구분해 여러 개를 입력할 수 있습니다. 각 항목은 이 PC에 있는 .ics 파일의 경로입니다(예: C:\\Users\\you\\calendar.ics). 모드는 캘린더를 다운로드하지 않습니다. 파일의 변경 사항은 일정에 반영되며, 캘린더마다 색상이 지정됩니다. 일정은 시계를 클릭하면 표시됩니다.
+  $description:ko-KR: 메뉴 막대 설정 → 캘린더에서도 .ics 파일을 가져올 수 있습니다. 목록의 항목 추가 버튼으로 원하는 만큼 추가하거나, 한 칸에 세미콜론(;)으로 구분해 여러 개를 입력할 수 있습니다. 각 항목은 이 PC에 있는 .ics 파일의 경로입니다(예) C:\\Users\\you\\calendar.ics). 모드는 캘린더를 다운로드하지 않습니다. 파일의 변경 사항은 일정에 반영되며, 캘린더마다 색상이 지정됩니다. 일정은 시계를 클릭하면 표시됩니다.
 */
 // ==/WindhawkModSettings==
 
