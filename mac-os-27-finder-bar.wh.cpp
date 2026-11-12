@@ -2347,6 +2347,16 @@ static HKL ActiveKeyboardLayout() {
 static std::wstring FormatClock() {
     SYSTEMTIME st;
     GetLocalTime(&st);
+    // Só refaz o texto quando algo visível muda (o minuto, ou o segundo se o formato o mostra,
+    // ou os ajustes/idioma); nos outros segundos devolve o último.
+    static std::wstring cache, cacheDate, cacheTime;
+    static WORD cMin = 0xFFFF, cSec = 0xFFFF, cDay = 0xFFFF;
+    static bool cUpper = false;
+    static int cLang = -1;
+    const bool secs = g_settings.timeFormat.find(L's') != std::wstring::npos;
+    if (cMin == st.wMinute && cDay == st.wDay && (!secs || cSec == st.wSecond) && cUpper == g_settings.dateUpper &&
+        cLang == g_lang.load() && cacheDate == g_settings.dateFormat && cacheTime == g_settings.timeFormat)
+        return cache;
     wchar_t date[64] = L"", time[64] = L"";
     if (!g_settings.dateFormat.empty())
         GetDateFormatEx(UiLocale(), 0, &st, T(g_settings.dateFormat.c_str()), date,
@@ -2359,6 +2369,14 @@ static std::wstring FormatClock() {
                       nullptr, nullptr, 0);
     if (!s.empty()) s += L"   ";
     s += time;
+    cache = s;
+    cMin = st.wMinute;
+    cSec = st.wSecond;
+    cDay = st.wDay;
+    cUpper = g_settings.dateUpper;
+    cLang = g_lang.load();
+    cacheDate = g_settings.dateFormat;
+    cacheTime = g_settings.timeFormat;
     return s;
 }
 
